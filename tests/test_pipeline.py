@@ -380,3 +380,23 @@ def test_multiple_symbols_stay_separate_end_to_end():
     result = run(ticks, watermark_s=worst + 1.0)
     assert correctness(result).agree
     assert len({r["symbol"] for r in result.streaming_rows}) == 3
+
+
+def test_the_cli_only_fails_when_exactness_was_required():
+    """CI caught this, and the fix is about what the exit code MEANS.
+
+    `parity` exits non-zero when the streaming and replayed-batch paths
+    disagree - but below the feed's maximum lateness they are *supposed* to
+    disagree, because the consumer legitimately dropped ticks. The command was
+    failing the build for behaving exactly as `boundary` documents.
+
+    Exactness is only required when the watermark covers the feed.
+    """
+    from featurepipe.cli import main
+
+    # Short watermark: mismatch is the documented cost, so exit 0.
+    assert main(["--minutes", "35", "--max-lateness", "90",
+                 "--watermark", "20", "parity"]) == 0
+    # Covering watermark: exactness is required, and it holds, so exit 0.
+    assert main(["--minutes", "35", "--max-lateness", "90",
+                 "--watermark", "95", "parity"]) == 0

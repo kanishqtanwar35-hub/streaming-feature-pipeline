@@ -33,11 +33,19 @@ jobs:
           PYTHONPATH: src
         run: pytest -q
 
-      - name: The paths agree, and the skew is measured
+      - name: Skew under a SHORT watermark, where mismatch is the documented cost
         env:
           PYTHONPATH: src
-        # Exits non-zero if streaming and the replayed batch job disagree.
         run: python -m featurepipe.cli parity
+
+      - name: Exactness under a COVERING watermark, where mismatch is a bug
+        env:
+          PYTHONPATH: src
+        # This is the one that can fail. With the watermark above the feed's
+        # maximum lateness both paths had the same information, so the two
+        # implementations must agree exactly - a mismatch here is a real bug,
+        # not a trade-off, and the command exits non-zero.
+        run: python -m featurepipe.cli --max-lateness 90 --watermark 95 parity
 
       - name: The watermark trade-off, as a table
         env:

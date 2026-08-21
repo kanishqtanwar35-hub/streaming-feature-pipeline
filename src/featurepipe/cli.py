@@ -85,15 +85,39 @@ def cmd_feed(args) -> int:
 def cmd_parity(args) -> int:
     ticks = _ticks(args)
     result = run(ticks, watermark_s=args.watermark)
+    worst = max(t.lateness for t in deduplicate(ticks))
 
     print(result.stream_stats.summary())
+    print(f"feed's maximum lateness: {worst:.1f}s, watermark: "
+          f"{args.watermark:.1f}s")
     print()
 
     check = correctness(result)
     print(check.summary())
-    print("  ^ streaming vs a batch job constrained to the same information.")
-    print("    Must be EXACT: same ticks, same window definition, so any")
-    print("    disagreement is a bug in one implementation, not a trade-off.")
+
+    # The exit code has to encode the LAW, not a blanket "must be exact".
+    #
+    # CI caught this: the default watermark is 45s and the default feed's max
+    # lateness is 90s, so the consumer legitimately drops ticks and correctness
+    # legitimately mismatches - and the command failed the build for behaving
+    # exactly as documented one command over in `boundary`.
+    #
+    # Exactness is required only when the watermark COVERS the feed. Below
+    # that, a mismatch is the expected cost of a short watermark; above it, a
+    # mismatch is a real bug in one of the implementations.
+    covered = args.watermark >= worst
+    if covered:
+        print("  ^ the watermark covers the feed's maximum lateness, so the")
+        print("    two paths had the SAME information. Exactness is required")
+        print("    here: any disagreement is a bug, not a trade-off.")
+        if not check.agree:
+            print("    -> FAILED. One implementation is wrong.")
+    else:
+        print(f"  ^ the watermark ({args.watermark:.0f}s) is BELOW the feed's")
+        print(f"    maximum lateness ({worst:.1f}s), so the consumer dropped")
+        print(f"    {result.stream_stats.dropped_late} ticks and cannot match any batch job.")
+        print("    That is the law, not a bug - see `boundary`. Re-run with")
+        print(f"    --watermark {worst + 1:.0f} to require exactness.")
     print()
 
     divergence = skew(result)
@@ -109,7 +133,8 @@ def cmd_parity(args) -> int:
         print("    simply has not received late data yet, while the batch job")
         print("    has. The watermark controls drops; it cannot control that.")
 
-    return 0 if check.agree else 1
+    # Only a failure when exactness was actually required.
+    return 0 if (check.agree or not covered) else 1
 
 
 def cmd_sweep(args) -> int:
