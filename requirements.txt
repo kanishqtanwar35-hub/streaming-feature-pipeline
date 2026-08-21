@@ -1,0 +1,12 @@
+# The pipeline itself needs NOTHING. The spec, both pure-Python
+# implementations, the parity harness and the whole test suite run on a bare
+# interpreter - which is the point: windowing logic that can only be exercised
+# by standing up infrastructure does not get exercised.
+pytest>=7.4
+
+# OPTIONAL - the Kafka transport. `docker compose -f docker/compose.yaml up -d`
+kafka-python-ng>=2.2
+
+# OPTIONAL - the third implementation. Needs a JVM; on a machine without Java
+# run it in Docker instead (see README).
+pyspark>=3.5

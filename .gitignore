@@ -1,0 +1,12 @@
+artifacts/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+.env
+spark-warehouse/
+derby.log
+.DS_Store
+Thumbs.db
